@@ -14,6 +14,12 @@
 
 #include <Hash.h>
 
+#include "DHT.h"
+#define DHTPIN 2     // what digital pin we're connected to
+#define DHTTYPE DHT11   // DHT 11
+
+DHT dht(DHTPIN, DHTTYPE);
+
 ESP8266WiFiMulti WiFiMulti;
 WebSocketsClient webSocket;
 
@@ -52,10 +58,12 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 }
 
 void setup() {
+  dht.begin();
+
     Serial.begin(115200);
 
     Serial.printf("Connecting to wifi..");
-    WiFiMulti.addAP("WIFI NAME", "PW");
+    WiFiMulti.addAP("WIFI_NAME", "PW");
     digitalWrite(13, HIGH);
 
     //WiFi.disconnect();
@@ -74,6 +82,30 @@ void setup() {
 }
 
 void loop() {
+
+  delay(2000);
+
+  // Reading temperature or humidity takes about 250 milliseconds!
+  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+  float h = dht.readHumidity();
+  // Read temperature as Celsius (the default)
+  float t = dht.readTemperature();
+  // Read temperature as Fahrenheit (isFahrenheit = true)
+  float f = dht.readTemperature(true);
+
+  // Check if any reads failed and exit early (to try again).
+  if (isnan(h) || isnan(t) || isnan(f)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  // Compute heat index in Fahrenheit (the default)
+  float hif = dht.computeHeatIndex(f, h);
+  // Compute heat index in Celsius (isFahreheit = false)
+  float hic = dht.computeHeatIndex(t, h, false);
+
+  webSocket.sendTXT("42[\"message\",{\"temperature\":\"%f\"}]", h);
+
     webSocket.loop();
 
     if(isConnected) {
