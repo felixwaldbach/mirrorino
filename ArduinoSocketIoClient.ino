@@ -1,113 +1,82 @@
 /*
- * WebSocketClientSocketIO.ino
- *
- *  Created on: 06.06.2016
- *
- */
+  DHBW project
 
-#include <Arduino.h>
+  Use esp8266 for wifi connection
+  Send dht22 data via websockets to web UI every 30 minutes
+  Use Softpot to toggle light and show current softpot value on web UI
 
-#include <ESP8266WiFi.h>
-#include <ESP8266WiFiMulti.h>
+  <Wiring>
+  DHT22:
+    1. 3,3V
+    2. Pin we're connected to with 3,3V and 10K Resistor
+    3. empty
+    4. GND
 
-#include <WebSocketsClient.h>
+  ESP8266:
 
-#include <Hash.h>
 
-#include "DHT.h"
-#define DHTPIN 2     // what digital pin we're connected to
-#define DHTTYPE DHT11   // DHT 11
 
-DHT dht(DHTPIN, DHTTYPE);
+*/
 
-ESP8266WiFiMulti WiFiMulti;
-WebSocketsClient webSocket;
+//Libraries
+#include <DHT.h>;
+#include <ArduinoJson.h>
 
-bool isConnected = false;
+//Constants
+#define DHTPIN 2     // what pin we're connected to
+#define DHTTYPE DHT22   // DHT 22  (AM2302)
+DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
 
-void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
-    Serial.printf("Receiving event...");
+//Variables and Objects
+int chk;
+float hum;  //Stores humidity value
+float temp; //Stores temperature value
+String data;
 
-    switch(type) {
-        case WStype_DISCONNECTED:
-            Serial.println("[WSc] Disconnected!\n");
-            isConnected = false;
-            break;
-        case WStype_CONNECTED:
-            {
-                Serial.printf("[WSc] Connected to url: %s\n",  payload);
-                isConnected = true;
-                digitalWrite(13, LOW); //Led port ausschalten
-                delay(1000); //1 Sek Pause
-                digitalWrite(13, HIGH); //Led port einschlaten
-                delay(1000);
-			          // send message to server when Connected
-                // socket.io upgrade confirmation message (required)
-				        webSocket.sendTXT("5");
-            }
-            break;
-        case WStype_TEXT:
-            Serial.printf("[WSc] get text: %s\n", payload);
-            break;
-        case WStype_BIN:
-            Serial.printf("[WSc] get binary length: %u\n", length);
-            hexdump(payload, length);
-            break;
-    }
+StaticJsonBuffer<200> jsonBuffer;
+JsonObject& root = jsonBuffer.createObject();
 
-}
-
-void setup() {
+void setup()
+{
+  Serial.begin(9600);
   dht.begin();
-
-    Serial.begin(115200);
-
-    Serial.printf("Connecting to wifi..");
-    WiFiMulti.addAP("WIFI_NAME", "PW");
-    digitalWrite(13, HIGH);
-
-    //WiFi.disconnect();
-    while(WiFiMulti.run() != WL_CONNECTED) {
-        delay(100);
-    }
-
-
-    Serial.printf("Connecting to socket io server..");
-    webSocket.beginSocketIO("192.168.0.103", 5000);
-    // example socket.io message with type "messageType" and JSON payload
-    webSocket.sendTXT("42[\"message\",{\"message\":\"hello from arduino\"}]");
-    //webSocket.setAuthorization("user", "Password"); // HTTP Basic Authorization
-    webSocket.onEvent(webSocketEvent);
-
 }
 
-void loop() {
+void loop()
+{
+    delay(2000);
 
-  delay(2000);
+    //Read data by using dht library and store it to variables hum and temp
+    hum = dht.readHumidity();
+    temp = dht.readTemperature();
 
-  // Reading temperature or humidity takes about 250 milliseconds!
-  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
-  float h = dht.readHumidity();
-  // Read temperature as Celsius (the default)
-  float t = dht.readTemperature();
-  // Read temperature as Fahrenheit (isFahrenheit = true)
-  float f = dht.readTemperature(true);
+    //Print temp and humidity values to serial monitor
+    Serial.print("Humidity: ");
+    Serial.print(hum);
+    Serial.print(" %, Temp: ");
+    Serial.print(temp);
+    Serial.println(" Celsius");
 
-  // Check if any reads failed and exit early (to try again).
-  if (isnan(h) || isnan(t) || isnan(f)) {
-    Serial.println("Failed to read from DHT sensor!");
-    return;
-  }
+    // Parse data into JSON
+    root["name"] = "dht22";
+    root["hum"] =  hum;
+    root["temp"] =  temp;
+    root.printTo(data);
 
-  // Compute heat index in Fahrenheit (the default)
-  float hif = dht.computeHeatIndex(f, h);
-  // Compute heat index in Celsius (isFahreheit = false)
-  float hic = dht.computeHeatIndex(t, h, false);
+    // Check if any reads failed and exit early (to try again).
+    if (isnan(hum) || isnan(temp)) {
+      Serial.println("Failed to read from DHT sensor!");
+      return;
+    } else {
+      //Print JSON to serial monitor
+      Serial.println(data);
 
-  webSocket.sendTXT("42[\"message\",{\"temperature\":\"%f\"}]", h);
 
-    webSocket.loop();
+      // Send data via ESP8266 and WebSockets to UI
 
-    if(isConnected) {
     }
+
+    delay(10000); // Delay x sec. for next round
 }
+
+   
