@@ -20,13 +20,21 @@
 
 //Constants
 #define DHTPIN 2     // what pin we're connected to
+#define PIRPIN 7     // what pin we're connected to
 #define DHTTYPE DHT22   // DHT 22  (AM2302)
 
 
 //Variables and Objects
 uint32_t zero = 0;
+uint32_t pirvalue; //Stores pir value
 uint32_t temp; //Stores temperature value
 String data; //Stores dht values as json
+
+boolean threadState1 = false;
+boolean threadState2 = false;
+
+Metro thread1 = Metro(20);
+Metro thread2 = Metro(1800000);  // for dht22, 30 minutes
 
 DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
 
@@ -42,6 +50,7 @@ Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO
 // Initialize Feeds for publishing
 // Notice MQTT paths for AIO follow the form: <username>/feeds/<feedname>
 Adafruit_MQTT_Publish temperature = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/inside");
+Adafruit_MQTT_Publish hcsrpir = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/pir");
 
 
 void setup(){
@@ -49,17 +58,20 @@ void setup(){
   Bridge.begin();
   Console.begin();
 
-  Console.print("Indoor DHT22 data");
+  Console.print("Indoor data");
   Console.println();
   Console.println();
   Console.println();
+
+  pinMode(PIRPIN, INPUT);     // declare sensor as inputPin
 
   dht.begin();
 
   // Send initial dht22 data
   readDHT();
 
-  delay(5000);
+  // One minute calibration time for pir
+  delay(60000);
 }
 
 void loop(){
@@ -73,9 +85,26 @@ void loop(){
     Console.println(F("MQTT Ping failed."));
   }
 
-  readDHT();
-  // Send update every 30 minutes.. 30 *  60 * 1000
-  delay(1800000);
+  if(thread1.check()) {
+    readPIR();
+  }
+  if(thread2.check()) {
+    readDHT();
+  }
+}
+
+void readPIR() {
+
+  pirvalue = digitalRead(PIRPIN);   // read sensor value
+  if (pirvalue == 1) {           // check if the sensor is HIGH
+    Console.println("Motion detected!");
+    hcsrpir.publish(pirvalue);
+  }
+  else {
+      Console.println("Motion stopped!");
+      hcsrpir.publish(pirvalue);
+  }
+
 }
 
 void readDHT() {
