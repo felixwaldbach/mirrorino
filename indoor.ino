@@ -33,7 +33,7 @@ String data; //Stores dht values as json
 boolean threadState1 = false;
 boolean threadState2 = false;
 
-Metro thread1 = Metro(20);
+Metro thread1 = Metro(1);
 Metro thread2 = Metro(1800000);  // for dht22, 30 minutes
 
 DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
@@ -58,11 +58,6 @@ void setup(){
   Bridge.begin();
   Console.begin();
 
-  Console.print("Indoor data");
-  Console.println();
-  Console.println();
-  Console.println();
-
   pinMode(PIRPIN, INPUT);     // declare sensor as inputPin
 
   dht.begin();
@@ -72,6 +67,11 @@ void setup(){
 
   // One minute calibration time for pir
   delay(60000);
+
+  Console.print("Indoor data");
+  Console.println();
+  Console.println();
+  Console.println();
 }
 
 void loop(){
