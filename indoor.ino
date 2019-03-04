@@ -33,7 +33,7 @@ String data; //Stores dht values as json
 boolean threadState1 = false;
 boolean threadState2 = false;
 
-Metro thread1 = Metro(1);
+Metro thread1 = Metro(1000);     // check every second
 Metro thread2 = Metro(1800000);  // for dht22, 30 minutes
 
 DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
@@ -96,15 +96,16 @@ void loop(){
 void readPIR() {
 
   pirvalue = digitalRead(PIRPIN);   // read sensor value
-  if (pirvalue == 1) {           // check if the sensor is HIGH
+  if (pirvalue == 1) {              // check if the sensor is HIGH
     Console.println("Motion detected!");
     hcsrpir.publish(pirvalue);
+    thread1.interval(180000); // 3 minute delay
   }
   else {
       Console.println("Motion stopped!");
       hcsrpir.publish(pirvalue);
+      thread1.interval(1000); // set back
   }
-
 }
 
 void readDHT() {
