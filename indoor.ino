@@ -54,8 +54,8 @@ Adafruit_MQTT_Publish temperature = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/
 Adafruit_MQTT_Publish hcsrpir = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/pir");
 
 // Initialize Feeds for subscribing
-const char ONOFF_FEED[] PROGMEM = AIO_USERNAME "/userDetection";
-Adafruit_MQTT_Subscribe motion = Adafruit_MQTT_Subscribe(&mqtt, ONOFF_FEED);
+const char ONOFF_FEED[] PROGMEM = AIO_USERNAME "/motion";
+Adafruit_MQTT_Subscribe userDetection = Adafruit_MQTT_Subscribe(&mqtt, ONOFF_FEED);
 
 
 void setup(){
@@ -97,13 +97,15 @@ void loop(){
 
   Adafruit_MQTT_Subscribe *subscription;
   while ((subscription = mqtt.readSubscription(5000))) {
+    if (subscription == &userDetection) {
       Console.println(F("Got: "));
       String message = (char *)onoffbutton.lastread;
       Console.println(message);
       if(message == "1") {
         delayMotionDetection();
       } else {
-        thread1.interval(1000); // set back
+          thread1.interval(1000); // set back
+      }
     }
   }
 
