@@ -97,16 +97,15 @@ void loop(){
 
   Adafruit_MQTT_Subscribe *subscription;
   while ((subscription = mqtt.readSubscription(5000))) {
-    if (subscription == &motion) {
       Console.println(F("Got: "));
       String message = (char *)onoffbutton.lastread;
       Console.println(message);
       if(message == "1") {
         delayMotionDetection();
       } else {
-          thread1.interval(1000); // set back
-      }
+        thread1.interval(1000); // set back
     }
+  }
 
   if(thread1.check()) {
     readPIR();
