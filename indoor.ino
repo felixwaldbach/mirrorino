@@ -53,11 +53,6 @@ Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO
 Adafruit_MQTT_Publish temperature = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/inside");
 Adafruit_MQTT_Publish hcsrpir = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/pir");
 
-// Initialize Feeds for subscribing
-const char ONOFF_FEED[] PROGMEM = AIO_USERNAME "/motion";
-Adafruit_MQTT_Subscribe userDetection = Adafruit_MQTT_Subscribe(&mqtt, ONOFF_FEED);
-
-
 void setup(){
   Serial.begin(9600);
   Bridge.begin();
@@ -77,9 +72,6 @@ void setup(){
   Console.println();
   Console.println();
   Console.println();
-
-  // Setup MQTT subscription for onoff feed.
-  mqtt.subscribe(&motion);
 }
 
 void loop(){
@@ -88,25 +80,9 @@ void loop(){
   // function definition further below.
   MQTT_connect();
 
-
-
   // ping the server to keep the mqtt connection alive
   if(! mqtt.ping()) {
     Console.println(F("MQTT Ping failed."));
-  }
-
-  Adafruit_MQTT_Subscribe *subscription;
-  while ((subscription = mqtt.readSubscription(5000))) {
-    if (subscription == &userDetection) {
-      Console.println(F("Got: "));
-      String message = (char *)onoffbutton.lastread;
-      Console.println(message);
-      if(message == "1") {
-        delayMotionDetection();
-      } else {
-          thread1.interval(1000); // set back
-      }
-    }
   }
 
   if(thread1.check()) {
@@ -149,12 +125,6 @@ void readDHT() {
       temperature.publish(temp);
       Console.println(data);
     }
-}
-
-// Subscribe to another topic to check, if face recognition could detect the user
-// If user is detected, block for 3 minutes, else continue
-void delayMotionDetection() {
-    thread1.interval(180000); // 3 minute delay if user is detected
 }
 
 // Function to connect and reconnect as necessary to the MQTT server.
