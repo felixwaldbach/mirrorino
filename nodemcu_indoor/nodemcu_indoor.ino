@@ -29,8 +29,11 @@
 
 #include <SimpleTimer.h>
 
-#define DHTPIN 4
+#define DHTPIN 13
 #define DHTTYPE DHT22
+
+#define PIRPIN 4
+#define NO_MOTION_MAX 5
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -40,15 +43,18 @@ SimpleTimer pirTimer;
 
 // Update these with values suitable for your network.
 
-const char* ssid = "...............";
-const char* password = "............";
-const char* mqtt_server = "..........";
+const char* ssid = "???";
+const char* password = "???";
+const char* mqtt_server = "???";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
-long lastMsg = 0;
+
 char msg[50];
-int value = 0;
+
+bool timeout = false;
+bool processing = false;
+int noMotionCtr = 0;
 
 void setup_wifi() {
 
@@ -76,21 +82,27 @@ void setup_wifi() {
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
   Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
+  Serial.print("], Payload: [");
 
-  // Switch on the LED if an 1 was received as first character
-  if ((char)payload[0] == '1') {
-    digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
-    // but actually the LED is on; this is because
-    // it is acive low on the ESP-01)
-  } else {
-    digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
+  char strPayload[50];
+  int i;
+  for (i = 0; i < length; i++) {
+    strPayload[i] = (char)payload[i];
   }
-
+  strPayload[i] = '\0';
+  Serial.print(strPayload);
+  Serial.println("]");
+  
+  if(strcmp(topic, "indoor/pir/receive/timeout") == 0) {
+    processing = false;
+    if(strcmp(strPayload, "true") == 0) {
+      Serial.println("Timeout message [true] received");
+      timeout = true;
+      delay(180000); // 3 minutes timeout 
+    } else {
+      Serial.println("Timeout message [false] received");
+    }
+  }
 }
 
 void reconnect() {
@@ -103,7 +115,7 @@ void reconnect() {
     if (client.connect(clientId.c_str())) {
       Serial.println("connected");
       // ... and resubscribe
-      client.subscribe("test");
+      client.subscribe("indoor/pir/receive/timeout");
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -122,34 +134,51 @@ void readDht() {
       snprintf (msg, 75, "%f", t);
       Serial.print("Publish temperature: ");
       Serial.println(msg);
-      client.publish("dht22/temperature", msg);
+      client.publish("indoor/dht22/send/temperature", msg);
     }
 }
 
 
 // a function to be executed periodically
 void readPir() {
-    Serial.print("Reading humidity\n");
-    float h = dht.readHumidity();
-    if(!isnan(h)) {
-      snprintf (msg, 75, "%f", h);
-      Serial.print("Publish humidity: ");
-      Serial.println(msg);
-      client.publish("dht22/humidity", msg);
+    if(processing) return;
+    long state = digitalRead(PIRPIN);
+    if(state == HIGH) {
+      Serial.println("Motion detected!");
+      snprintf (msg, 75, "1");
+      client.publish("indoor/pir/send/motion", msg);
+      processing = true;
+    } else {
+      //Serial.println("Motion absent!");
+      if(timeout) {
+        Serial.println("Timeout activated");
+        if(noMotionCtr == NO_MOTION_MAX) {
+          Serial.println("Klling session!");
+          snprintf (msg, 75, "0");
+          client.publish("indoor/pir/send/motion", msg); 
+          noMotionCtr = 0;
+          timeout = false;
+        } else {
+          noMotionCtr++;
+        }
+      }
     }
+    delay(1000);
 }
 
 void setup() {
   pinMode(BUILTIN_LED, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
+  pinMode(PIRPIN, INPUT);   // declare sensor as input
   Serial.begin(115200);
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
 
   dht.begin();
-  
-  dhtTimer.setInterval(5000, readDht);
-  pirTimer.setInterval(10000, readPir);
+  dhtTimer.setInterval(1800500, readDht);
+  delay(60000);
+  Serial.println("Motion detection ready");
+  pirTimer.setInterval(1000, readPir);
 }
 
 void loop() {
