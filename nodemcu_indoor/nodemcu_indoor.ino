@@ -45,7 +45,7 @@ SimpleTimer pirTimer;
 
 const char* ssid = "SmartMirror";
 const char* password = "smartmirror2019";
-const char* mqtt_server = "192.168.2.104";
+const char* mqtt_server = "192.168.178.200";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
