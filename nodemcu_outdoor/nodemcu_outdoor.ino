@@ -23,41 +23,44 @@
 
 */
 
+
+// Includes
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include "DHT.h"
 
-#include <SimpleTimer.h>
+// Constants and Objects
+#define DHTPIN 13 // Digital Pin that the DHT sensor is connected to
+#define DHTTYPE DHT22 // Type of the DHT sensor
 
-#define DHTPIN 13
-#define DHTTYPE DHT22
-
-DHT dht(DHTPIN, DHTTYPE);
-
-// the timer object
-SimpleTimer dhtTimer;
+DHT dht(DHTPIN, DHTTYPE); // DHT Sensor Object
 
 // Update these with values suitable for your network.
+const char* ssid = "SmartMirror"; // WiFi Network Name
+const char* password = "smartmirror2019"; // WiFi Network Password
+const char* mqtt_server = "192.168.178.200"; // MQTT Broker Address
 
-const char* ssid = "SmartMirror";
-const char* password = "smartmirror2019";
-const char* mqtt_server = "192.168.178.200";
+WiFiClient espClient; // WiFi Client Object
+PubSubClient client(espClient); // MQTT Client Object
 
-WiFiClient espClient;
-PubSubClient client(espClient);
+char msg[50]; // Message variable used to send MQTT messages with a payload
 
-char msg[50];
-
-void setup_wifi() {
+/**
+ * Function: setupWifi
+ * Parameters: -
+ * Function is called inside the setup function to connect the device to WiFi
+ */
+void setupWifi() {
 
   delay(10);
-  // We start by connecting to a WiFi network
+  // Connect to WiFi
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
   WiFi.begin(ssid, password);
 
+  // Print dots while the WiFi is connecting
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -65,17 +68,28 @@ void setup_wifi() {
 
   randomSeed(micros());
 
+  // Print IP Address after connecting to WiFi
   Serial.println("");
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 }
 
+/**
+ * Function: callback
+ * Parameters: 
+ * *** topic: MQTT Topic of the incoming message
+ * *** payload: Payload that has been sent together with the message
+ * *** length: Length of the payload byte array
+ * This function is called whenever an MQTT message reaches the MQTT Client on this device
+ */
 void callback(char* topic, byte* payload, unsigned int length) {
+  // Print the incoming message
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("], Payload: [");
 
+  // Convert payload to string
   char strPayload[50];
   int i;
   for (i = 0; i < length; i++) {
@@ -84,17 +98,30 @@ void callback(char* topic, byte* payload, unsigned int length) {
   strPayload[i] = '\0';
   Serial.print(strPayload);
   Serial.println("]");
+
+  // Check the Topic of the incoming message
+  if(strcmp(topic, "outdoor/dht22/receive/values") == 0) { // Value request message
+    Serial.println("DHT 22 Value Request received");
+    readDht(); // Read current temperature and humidity of the DHT sensor
+  }
 }
 
+/**
+ * Function: reconnect
+ * Parameters: -
+ * This function is invoked when the MQTT client loses connection to the MQTT Broker
+ * It attempts to reconnect every 5 seconds until a connection is established again
+ */
 void reconnect() {
-  // Loop until we're reconnected
+  // Loop until connection is re-established
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
-    // Create a random client ID
-    String clientId = "ESP8266Client-Outdoor";
+    String clientId = "ESP8266Client-Indoor"; // Client ID for the Broker
     // Attempt to connect
     if (client.connect(clientId.c_str())) {
       Serial.println("connected");
+      // Resubscribe to the relevant topics for this client
+      client.subscribe("outdoor/dht22/receive/values"); // Request value message is received periodically when the OutdoorWidget is activated on the Mirror
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -105,34 +132,55 @@ void reconnect() {
   }
 }
 
-// a function to be executed periodically
+/**
+ * Function: readDht
+ * Parameters: -
+ * Function is invoked inside the dhtTimer and reads current temperature and humidity values of the DHT sensor
+ */
 void readDht() {
-    Serial.print("Reading temperature\n");
-    float t = dht.readTemperature();
-    if(!isnan(t)) {
+    Serial.print("Reading temperature and humidity\n");
+    float h = dht.readHumidity(); // Humidity
+    float t = dht.readTemperature(); // Temperature
+    if(!isnan(t) && !isnan(h)) { // Check if values are valid
       snprintf (msg, 75, "%f", t);
       Serial.print("Publish temperature: ");
       Serial.println(msg);
-      client.publish("indoor/dht22/send/temperature", msg);
+      client.publish("outdoor/dht22/send/temperature", msg); // Send the temperature data to the mirror
+
+      snprintf(msg, 75, "%f", h);
+      Serial.print("Publish humidity: ");
+      Serial.println(msg);
+      client.publish("outdoor/dht22/send/humidity", msg); // Send the humidity data to the mirror
     }
+    delay(1000);
 }
 
+/**
+ * Function: setup
+ * Parameters: -
+ * The setup function is executed at start to set up the Pins, WiFi connection and MQTT Connection
+ */
 void setup() {
+  pinMode(BUILTIN_LED, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
   Serial.begin(115200);
-  setup_wifi();
-  client.setServer(mqtt_server, 1883);
+  
+  setupWifi(); // Connect to WiFi
+  
+  client.setServer(mqtt_server, 1883); // Connect to MQTT
   client.setCallback(callback);
 
-  dht.begin();
-  dhtTimer.setInterval(1800500, readDht);
+  dht.begin(); // Start DHT sensor
 }
 
+/**
+ * Function: loop
+ * Parameters: -
+ * Main loop
+ */
 void loop() {
 
-  if (!client.connected()) {
+  if (!client.connected()) { // If MQTT Client is disconnected, attempt to reconnect
     reconnect();
   }
   client.loop();
-  
-  dhtTimer.run();
 }
