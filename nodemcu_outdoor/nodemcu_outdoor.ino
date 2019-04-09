@@ -38,7 +38,7 @@ DHT dht(DHTPIN, DHTTYPE); // DHT Sensor Object
 // Update these with values suitable for your network.
 const char* ssid = "SmartMirror"; // WiFi Network Name
 const char* password = "smartmirror2019"; // WiFi Network Password
-const char* mqtt_server = "192.168.178.200"; // MQTT Broker Address
+const char* mqtt_server = "172.20.10.6"; // MQTT Broker Address
 
 WiFiClient espClient; // WiFi Client Object
 PubSubClient client(espClient); // MQTT Client Object
@@ -116,7 +116,7 @@ void reconnect() {
   // Loop until connection is re-established
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
-    String clientId = "ESP8266Client-Indoor"; // Client ID for the Broker
+    String clientId = "ESP8266Client-Outdoor"; // Client ID for the Broker
     // Attempt to connect
     if (client.connect(clientId.c_str())) {
       Serial.println("connected");
